@@ -281,15 +281,20 @@ export function deletePart(db: DB, id: number) {
   });
 }
 
-/** Warteschlange je Maschine: nicht erledigte Teile aktiver Aufträge, nach Priorität und Deadline. */
-export function machineQueue(db: DB, machineId?: number) {
+/**
+ * Warteschlange je Maschine: nicht erledigte Teile aktiver Aufträge, nach Priorität und Deadline.
+ * Mit includeDone zusätzlich die erledigten Teile noch nicht abgeholter Aufträge (zum Zurücknehmen).
+ */
+export function machineQueue(db: DB, machineId?: number, includeDone = false) {
   const rows = db.prepare(`
     SELECT p.*, o.title AS order_title, o.priority AS order_priority, o.due_date AS order_due, o.status AS order_status,
            o.customer_name AS order_customer
     FROM parts p JOIN orders o ON o.id = p.order_id
-    WHERE p.done = 0 AND p.machine_id IS NOT NULL AND o.status IN ('neu','in_bearbeitung')
+    WHERE p.machine_id IS NOT NULL AND (
+      (p.done = 0 AND o.status IN ('neu','in_bearbeitung'))
+      ${includeDone ? "OR (p.done = 1 AND o.status IN ('neu','in_bearbeitung','fertig'))" : ''})
       ${machineId ? 'AND p.machine_id = ?' : ''}
-    ORDER BY CASE p.status WHEN 'in_arbeit' THEN 0 WHEN 'fehlgeschlagen' THEN 1 ELSE 2 END,
+    ORDER BY p.done, CASE p.status WHEN 'in_arbeit' THEN 0 WHEN 'fehlgeschlagen' THEN 1 ELSE 2 END,
              CASE o.priority WHEN 'hoch' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
              COALESCE(o.due_date, '9999-12-31'), o.created_at, p.sort
   `).all(...(machineId ? [machineId] : [])) as any[];

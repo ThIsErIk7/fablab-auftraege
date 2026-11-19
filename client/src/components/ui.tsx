@@ -160,7 +160,10 @@ export function MoneyInput({ cents, onChange, allowNegative, mills, ...rest }: {
   );
 }
 
-/** Große, eckige Checkbox zum Abhaken – für Finger am Tablet. */
+/**
+ * Eckige Checkbox zum Abhaken. Sichtbar klein (26 px), die Klickfläche bleibt
+ * mit 44 px aber groß genug für Finger am Tablet.
+ */
 export function BigCheckbox({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <button
@@ -171,11 +174,13 @@ export function BigCheckbox({ checked, onChange, label, disabled }: { checked: b
       title={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`flex h-12 w-12 shrink-0 items-center justify-center border-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-40 ${
-        checked ? 'border-brand-500 bg-brand-500 text-zinc-900' : 'border-zinc-900 bg-white hover:bg-brand-50 dark:border-zinc-400 dark:bg-zinc-900 dark:hover:bg-zinc-800'
-      }`}
+      className="group -m-2 flex h-11 w-11 shrink-0 items-center justify-center focus:outline-none disabled:opacity-40"
     >
-      {checked && <IconCheck width={28} height={28} strokeWidth={3} />}
+      <span className={`flex h-[26px] w-[26px] items-center justify-center border-2 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-brand-500 group-focus-visible:ring-offset-2 ${
+        checked ? 'border-brand-500 bg-brand-500 text-zinc-900' : 'border-zinc-900 bg-white group-hover:bg-brand-50 dark:border-zinc-400 dark:bg-zinc-900 dark:group-hover:bg-zinc-800'
+      }`}>
+        {checked && <IconCheck width={18} height={18} strokeWidth={3} />}
+      </span>
     </button>
   );
 }

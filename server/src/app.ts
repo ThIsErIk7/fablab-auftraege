@@ -137,7 +137,7 @@ export function buildApp(db: DB, opts: { logger?: boolean } = {}) {
     return getOrder(db, id);
   });
 
-  app.get('/api/machines/queue', (req) => machineQueue(db, num((req.query as any).machineId)));
+  app.get('/api/machines/queue', (req) => machineQueue(db, num((req.query as any).machineId), (req.query as any).done === '1'));
   app.get('/api/dashboard', () => getDashboard(db));
   app.get('/api/history', (req) => {
     const q = req.query as Record<string, string>;
