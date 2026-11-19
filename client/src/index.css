@@ -1,0 +1,80 @@
+@import "@fontsource/titillium-web/300.css";
+@import "@fontsource/titillium-web/400.css";
+@import "@fontsource/titillium-web/600.css";
+@import "@fontsource/titillium-web/700.css";
+@import "@fontsource/titillium-web/900.css";
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Designsprache nach fablab.sh:
+  Titillium Web · Cyan #0cb4ce als Akzent · Anthrazit #141618 · Flächen #f7f7f7 / Linien #eaeaea
+  Flach, kantig, klare 1-px-Linien, Versal-Überschriften, Pill-Buttons.
+*/
+@theme {
+  --font-sans: "Titillium Web", ui-sans-serif, system-ui, sans-serif;
+
+  /* Akzent (Cyan) – 700/800 sind die dunkleren Töne für Text auf Weiß (Kontrast ≥ 4.5:1) */
+  --color-brand-50: #e8f8fb;
+  --color-brand-100: #c4eef5;
+  --color-brand-300: #5fd2e3;
+  --color-brand-500: #0cb4ce;
+  --color-brand-600: #00a7c1;
+  --color-brand-700: #077f92;
+  --color-brand-800: #05606f;
+
+  /* Neutrale Töne aus dem Website-Theme */
+  --color-zinc-50: #f7f7f7;
+  --color-zinc-100: #f0f0f0;
+  --color-zinc-200: #eaeaea;
+  --color-zinc-300: #d4d4d4;
+  --color-zinc-400: #a9a9a9;
+  --color-zinc-500: #777777;
+  --color-zinc-600: #55585c;
+  --color-zinc-700: #34373b;
+  --color-zinc-800: #23262a;
+  --color-zinc-900: #141618;
+  --color-zinc-950: #0b0d0f;
+
+  /* Statusfarben des Themes */
+  --color-ok: #1fbf62;
+  --color-warn: #f5b316;
+  --color-bad: #ff3100;
+
+  /* Kantig statt weich */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+}
+
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  font-feature-settings: "tnum" 0;
+}
+
+@layer components {
+/* Formularfelder: flach mit Unterkante, groß genug für Touch */
+.input {
+  @apply w-full min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-900
+         placeholder:text-zinc-400
+         dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100
+         focus:outline-none focus:border-zinc-900 focus:ring-0 focus:shadow-[inset_0_-2px_0_var(--color-brand-500)]
+         dark:focus:border-zinc-300
+         disabled:opacity-50 aria-invalid:border-bad;
+}
+textarea.input { @apply min-h-20; }
+.label { @apply mb-1 block text-xs font-semibold uppercase tracking-[0.08em] text-zinc-600 dark:text-zinc-400; }
+.card { @apply border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900; }
+.tabular { font-variant-numeric: tabular-nums; }
+
+}
+
+/* Kleines Eck-Motiv aus dem Logo (┐) */
+.bracket { position: relative; }
+.bracket::after {
+  content: ""; position: absolute; top: 0; right: 0; width: 14px; height: 14px;
+  border-top: 3px solid var(--color-brand-500); border-right: 3px solid var(--color-brand-500);
+}

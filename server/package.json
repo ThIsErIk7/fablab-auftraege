@@ -1,0 +1,22 @@
+{
+  "name": "@fablab/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "start": "NODE_ENV=production tsx src/index.ts",
+    "seed": "tsx src/db/seedCli.ts",
+    "reset-db": "tsx src/db/seedCli.ts --reset"
+  },
+  "dependencies": {
+    "@fablab/shared": "*",
+    "@fastify/static": "^10.1.11",
+    "fastify": "^5.12.8",
+    "papaparse": "^5.7.1",
+    "pdfmake": "^0.3.14",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": { "@types/node": "^24.0.0", "tsx": "^4.23.15" }
+}
