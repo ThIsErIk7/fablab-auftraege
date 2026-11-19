@@ -2,6 +2,7 @@
 // Läuft im Browser (Vorschau) und auf dem Server (erneute Prüfung beim Speichern).
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { inferFromContext, matchMachine, matchMaterial, matchProcess, splitAliases, type Match } from './matching.ts';
 import { parseLocaleNumber } from './money.ts';
 import type { MasterData, PartStatus } from './types.ts';
 import { PART_STATUSES, PART_STATUS_LABELS } from './types.ts';
@@ -213,6 +214,8 @@ export interface RowResult {
   raw: Partial<Record<ImportFieldKey, string>>;
   errors: string[];
   warnings: string[];
+  /** Automatische Zuordnungen mit Begründung, z. B. "Material „PETG schwarz“ → PETG" */
+  notes: string[];
   unknownProcess: string | null;
   unknownMachine: string | null;
 }
@@ -237,8 +240,16 @@ const str = (v: Cell): string | null => {
 };
 
 export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterData): RowResult[] {
+  // Bekannte Namen: offizieller Name ODER exakter Alternativname (aus den Stammdaten gepflegt)
   const procByName = new Map(md.processes.map((p) => [nameKey(p.name), p]));
   const machByName = new Map(md.machines.map((m) => [nameKey(m.name), m]));
+  const procByAlias = new Map<string, (typeof md.processes)[number]>();
+  for (const p of md.processes) for (const a of splitAliases(p.aliases)) if (!procByAlias.has(nameKey(a))) procByAlias.set(nameKey(a), p);
+  // Mehrdeutige Alternativnamen (gleicher Alias bei zwei Maschinen) gelten nicht als eindeutig
+  const machAliasCount = new Map<string, number>();
+  for (const m of md.machines) for (const a of splitAliases(m.aliases)) machAliasCount.set(nameKey(a), (machAliasCount.get(nameKey(a)) ?? 0) + 1);
+  const machByAlias = new Map<string, (typeof md.machines)[number]>();
+  for (const m of md.machines) for (const a of splitAliases(m.aliases)) if (machAliasCount.get(nameKey(a)) === 1) machByAlias.set(nameKey(a), m);
 
   return rows.map((row, index) => {
     const raw: Partial<Record<ImportFieldKey, string>> = {};
@@ -250,6 +261,7 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
     });
     const errors: string[] = [];
     const warnings: string[] = [];
+    const notes: string[] = [];
 
     const name = str(val.name ?? null);
     if (!name) errors.push('Bezeichnung fehlt.');
@@ -303,12 +315,15 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
     let unknownProcess: string | null = null;
     let unknownMachine: string | null = null;
     if (procName) {
-      const p = procByName.get(nameKey(procName));
-      if (p) processId = p.id;
-      else unknownProcess = procName;
+      const p = procByName.get(nameKey(procName)) ?? procByAlias.get(nameKey(procName));
+      if (p) {
+        processId = p.id;
+        if (nameKey(p.name) !== nameKey(procName)) notes.push(`Verfahren „${procName}“ → ${p.name}`);
+      } else unknownProcess = procName;
     }
     if (machName) {
-      const m = machByName.get(nameKey(machName));
+      const m = machByName.get(nameKey(machName)) ?? machByAlias.get(nameKey(machName));
+      if (m && nameKey(m.name) !== nameKey(machName)) notes.push(`Maschine „${machName}“ → ${m.name}`);
       if (m) {
         machineId = m.id;
         if (processId === null && !unknownProcess) processId = m.processId;
@@ -319,8 +334,20 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
       } else unknownMachine = machName;
     }
 
-    // Material: bekannter Name im Verfahren → ID, sonst Freitext
     const matName = str(val.material ?? null);
+    const fileRef = str(val.fileRef ?? null);
+
+    // Kein (bekanntes) Verfahren und keine Maschine → aus Datei, Material und Freitext ableiten
+    if (processId === null && machineId === null && !unknownProcess && !unknownMachine) {
+      const inf = inferFromContext({ fileRef, material: matName, machineText: machName, processText: procName }, md);
+      if (inf.processId !== null) {
+        processId = inf.processId;
+        machineId = inf.machineId;
+        notes.push(...inf.notes);
+      } else notes.push(...inf.notes);
+    }
+
+    // Material: exakter Name im Verfahren → ID; sonst Alternativname/ähnlicher Name (sicher) → ID; sonst Freitext
     let materialId: number | null = null;
     let materialText: string | null = null;
     if (matName) {
@@ -328,7 +355,24 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
         (x) => nameKey(x.name) === nameKey(matName) && (processId === null || x.processId === processId),
       );
       if (m) materialId = m.id;
-      else materialText = matName;
+      else {
+        const fm = matchMaterial(matName, md, processId);
+        const hit = fm && fm.confidence !== 'niedrig' ? md.materials.find((x) => x.id === fm.id) : null;
+        if (hit && (processId === null || hit.processId === processId)) {
+          materialId = hit.id;
+          notes.push(`Material „${matName}“ → ${hit.name}`);
+          // Rest des Textes (z. B. Farbe "PETG schwarz") nicht verlieren
+          if (!str(val.color ?? null)) {
+            // Nur wenn der Materialname als eigenes Wort vorkommt: "PETG schwarz" → Farbe "schwarz"
+            const esc = hit.name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+            const re = new RegExp(`(^|\\s)${esc}(?=\\s|$)`, 'i');
+            if (re.test(matName)) {
+              const rest = matName.replace(re, ' ').trim();
+              if (/^[a-zäöüß][a-zäöüß\s-]{2,29}$/i.test(rest)) val.color = rest;
+            }
+          }
+        } else materialText = matName;
+      }
     }
 
     return {
@@ -337,6 +381,7 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
       raw,
       errors,
       warnings,
+      notes,
       unknownProcess,
       unknownMachine,
       part: {
@@ -350,7 +395,7 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
         dimW,
         dimD,
         dimH,
-        fileRef: str(val.fileRef ?? null),
+        fileRef,
         estMinutes,
         actualMinutes,
         materialAmount,
@@ -362,27 +407,48 @@ export function validateRows(rows: Cell[][], mapping: ColumnMapping, md: MasterD
 }
 
 /** Liste unbekannter Verfahren/Maschinen (eindeutig), für die Auflösungs-Oberfläche. */
-export function collectUnknowns(results: RowResult[]) {
-  const processes = new Map<string, { name: string; rows: number[] }>();
-  const machines = new Map<string, { name: string; rows: number[]; processName: string | null; processId: number | null }>();
+export interface UnknownName {
+  key: string;
+  name: string;
+  rows: number[];
+  /** Vorschlag der Regel-Erkennung (nur gesetzt, wenn ein Kandidat herausragt) */
+  suggestion: Match | null;
+}
+export interface UnknownMachine extends UnknownName {
+  processName: string | null;
+  processId: number | null;
+}
+
+/**
+ * Liste unbekannter Verfahren/Maschinen (eindeutig) mit Zuordnungsvorschlag.
+ * Für Maschinen wird das Verfahren der Zeile (bekannt oder aus Datei/Material abgeleitet) berücksichtigt.
+ */
+export function collectUnknowns(results: RowResult[], md?: MasterData) {
+  const processes = new Map<string, UnknownName>();
+  const machines = new Map<string, UnknownMachine>();
   for (const r of results) {
     if (r.unknownProcess) {
       const k = nameKey(r.unknownProcess);
-      const e = processes.get(k) ?? { name: r.unknownProcess, rows: [] };
+      const e = processes.get(k) ?? { key: k, name: r.unknownProcess, rows: [], suggestion: md ? matchProcess(r.unknownProcess, md) : null };
       e.rows.push(r.line);
       processes.set(k, e);
     }
     if (r.unknownMachine) {
       const k = nameKey(r.unknownMachine);
-      const e = machines.get(k) ?? { name: r.unknownMachine, rows: [], processName: r.unknownProcess ?? r.raw.process ?? null, processId: r.part.processId };
+      let e = machines.get(k);
+      if (!e) {
+        let pid = r.part.processId;
+        if (pid === null && md) {
+          pid = inferFromContext({ fileRef: r.part.fileRef, material: r.raw.material, processText: r.unknownProcess ?? r.raw.process }, md).processId;
+        }
+        e = { key: k, name: r.unknownMachine, rows: [], processName: r.unknownProcess ?? r.raw.process ?? null, processId: pid,
+          suggestion: md ? matchMachine(r.unknownMachine, md, pid) : null };
+        machines.set(k, e);
+      }
       e.rows.push(r.line);
-      machines.set(k, e);
     }
   }
-  return {
-    processes: [...processes.entries()].map(([key, v]) => ({ key, ...v })),
-    machines: [...machines.entries()].map(([key, v]) => ({ key, ...v })),
-  };
+  return { processes: [...processes.values()], machines: [...machines.values()] };
 }
 
 // ---------------------------------------------------------------------------

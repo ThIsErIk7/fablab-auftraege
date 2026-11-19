@@ -67,18 +67,19 @@ function MachinesTab() {
 
   return (
     <>
-      <div className="mb-4 flex justify-end"><Button variant="primary" onClick={() => setProc({ name: '', active: true, sort: md!.processes.length })}>+ Verfahren</Button></div>
+      <div className="mb-4 flex justify-end"><Button variant="primary" onClick={() => setProc({ name: '', active: true, aliases: '', sort: md!.processes.length })}>+ Verfahren</Button></div>
       <div className="grid gap-4 lg:grid-cols-2">
         {md!.processes.map((p) => (
           <Card key={p.id} title={<span className={p.active ? '' : 'text-zinc-400 line-through'}>{p.name}</span>} actions={<>
             <Button size="sm" variant="ghost" onClick={() => setProc(p)}>Bearbeiten</Button>
-            <Button size="sm" onClick={() => setMachine({ processId: p.id, name: '', active: true, note: null, hourlyRateCents: 0, jobFlatCents: 0, sort: 0 })}>+ Maschine</Button>
+            <Button size="sm" onClick={() => setMachine({ processId: p.id, name: '', active: true, note: null, hourlyRateCents: 0, jobFlatCents: 0, aliases: '', sort: 0 })}>+ Maschine</Button>
           </>}>
             <ul className="-my-2 divide-y divide-zinc-200 dark:divide-zinc-800">
               {md!.machines.filter((m) => m.processId === p.id).map((m) => (
                 <li key={m.id} className="flex flex-wrap items-center gap-2 py-2">
                   <div className="min-w-0 flex-1">
                     <div className={m.active ? 'font-medium' : 'font-medium text-zinc-400'}>{m.name}</div>
+                    {m.aliases && <div className="truncate text-xs text-zinc-500" title={m.aliases}>auch: {m.aliases}</div>}
                     <div className="text-sm text-zinc-500">{euro(m.hourlyRateCents)}/h{m.jobFlatCents ? ` · ${euro(m.jobFlatCents)} pro Job` : ''}{!m.active && <span className="text-zinc-900 dark:text-white"> · deaktiviert{m.note ? `: ${m.note}` : ''}</span>}</div>
                   </div>
                   <Button size="sm" variant={m.active ? 'secondary' : 'success'} onClick={() => toggle.mutate(m)}>{m.active ? 'Deaktivieren' : 'Aktivieren'}</Button>
@@ -96,6 +97,7 @@ function MachinesTab() {
         {machine && (
           <div className="grid gap-4">
             <Field label="Name" required><Input value={machine.name ?? ''} onChange={(e) => setMachine({ ...machine, name: e.target.value })} /></Field>
+            <Field label="Alternativnamen (Import)" hint="Kommagetrennt. Damit erkennt der Import auch andere Schreibweisen aus Excel/CSV."><Input value={machine.aliases ?? ''} placeholder="z. B. Bambu, X1C, BBL" onChange={(e) => setMachine({ ...machine, aliases: e.target.value })} /></Field>
             <Field label="Verfahren" hint="Jede Maschine gehört zu genau einem Verfahren.">
               <Select value={machine.processId} onChange={(e) => setMachine({ ...machine, processId: Number(e.target.value) })}>
                 {md!.processes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -115,6 +117,7 @@ function MachinesTab() {
         {proc && (
           <div className="grid gap-4">
             <Field label="Name" required><Input value={proc.name ?? ''} onChange={(e) => setProc({ ...proc, name: e.target.value })} /></Field>
+            <Field label="Alternativnamen (Import)" hint="Kommagetrennt. Damit erkennt der Import auch andere Schreibweisen aus Excel/CSV."><Input value={proc.aliases ?? ''} placeholder="z. B. Laser, Lasern, Gravur" onChange={(e) => setProc({ ...proc, aliases: e.target.value })} /></Field>
             <Field label="Reihenfolge"><NumberInput integer value={proc.sort ?? 0} onChange={(v) => setProc({ ...proc, sort: v ?? 0 })} /></Field>
             <Toggle checked={proc.active ?? true} onChange={(v) => setProc({ ...proc, active: v })} label="Aktiv" />
           </div>
@@ -139,7 +142,7 @@ function MaterialsTab() {
       <p className="mb-4 text-zinc-600 dark:text-zinc-400">Materialien erscheinen im Teil-Formular als Vorschlagsliste für das jeweilige Verfahren. Freitext bleibt immer möglich (dann ohne automatischen Preis).</p>
       <div className="grid gap-4 lg:grid-cols-2">
         {md!.processes.map((p) => (
-          <Card key={p.id} title={p.name} actions={<Button size="sm" onClick={() => setMat({ processId: p.id, name: '', unit: 'g', priceMills: 0, active: true, sort: 0 })}>+ Material</Button>}>
+          <Card key={p.id} title={p.name} actions={<Button size="sm" onClick={() => setMat({ processId: p.id, name: '', unit: 'g', priceMills: 0, active: true, aliases: '', sort: 0 })}>+ Material</Button>}>
             <ul className="-my-2 divide-y divide-zinc-200 dark:divide-zinc-800">
               {md!.materials.filter((m) => m.processId === p.id).map((m) => (
                 <li key={m.id} className="flex items-center gap-2 py-2">
@@ -159,6 +162,7 @@ function MaterialsTab() {
         {mat && (
           <div className="grid gap-4">
             <Field label="Name" required><Input value={mat.name ?? ''} onChange={(e) => setMat({ ...mat, name: e.target.value })} /></Field>
+            <Field label="Alternativnamen (Import)" hint="Kommagetrennt. Damit erkennt der Import auch andere Schreibweisen aus Excel/CSV."><Input value={mat.aliases ?? ''} placeholder="z. B. Plexiglas, PMMA" onChange={(e) => setMat({ ...mat, aliases: e.target.value })} /></Field>
             <Field label="Verfahren">
               <Select value={mat.processId} onChange={(e) => setMat({ ...mat, processId: Number(e.target.value) })}>
                 {md!.processes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

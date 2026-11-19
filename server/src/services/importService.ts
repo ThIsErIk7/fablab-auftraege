@@ -42,7 +42,7 @@ function applyResolutions(db: DB, rows: Cell[][], mapping: ColumnMapping, res: R
     const key = nameKey(r.unknownProcess);
     const rs = res.processes[key];
     if (rs?.action === 'create' && !md.processes.some((p) => nameKey(p.name) === key)) {
-      createProcess(db, { name: r.unknownProcess, active: true, sort: md.processes.length });
+      createProcess(db, { name: r.unknownProcess, active: true, aliases: '', sort: md.processes.length });
       md = getMasterData(db);
     }
   }
@@ -51,7 +51,7 @@ function applyResolutions(db: DB, rows: Cell[][], mapping: ColumnMapping, res: R
       if (rs.action !== 'map') continue;
       const target = m.processes.find((p) => p.id === rs.id);
       if (!target) throw badRequest('Zugeordnetes Verfahren existiert nicht.');
-      m.processes.push({ ...target, name: key });
+      m.processes.push({ ...target, name: key, aliases: '' });
     }
     return m;
   };
@@ -66,7 +66,7 @@ function applyResolutions(db: DB, rows: Cell[][], mapping: ColumnMapping, res: R
     if (rs?.action === 'create' && !md.machines.some((m) => nameKey(m.name) === key)) {
       const processId = rs.processId ?? r.part.processId;
       if (!processId) throw badRequest(`Für die neue Maschine „${r.unknownMachine}“ muss ein Verfahren gewählt werden.`);
-      createMachine(db, { processId, name: r.unknownMachine, active: true, note: null, hourlyRateCents: 0, jobFlatCents: 0, sort: 99 });
+      createMachine(db, { processId, name: r.unknownMachine, active: true, note: null, hourlyRateCents: 0, jobFlatCents: 0, aliases: '', sort: 99 });
       md = procAlias(getMasterData(db));
     }
   }
@@ -74,7 +74,7 @@ function applyResolutions(db: DB, rows: Cell[][], mapping: ColumnMapping, res: R
     if (rs.action !== 'map') continue;
     const target = md.machines.find((m) => m.id === rs.id);
     if (!target) throw badRequest('Zugeordnete Maschine existiert nicht.');
-    md.machines.push({ ...target, name: key });
+    md.machines.push({ ...target, name: key, aliases: '' });
   }
   return md;
 }

@@ -8,17 +8,17 @@ import type { MasterData } from './types.ts';
 
 const md: MasterData = {
   processes: [
-    { id: 1, name: '3D-Druck FDM', active: true, sort: 0 },
-    { id: 2, name: 'Lasercutten/Gravieren', active: true, sort: 1 },
+    { id: 1, name: '3D-Druck FDM', active: true, aliases: '', sort: 0 },
+    { id: 2, name: 'Lasercutten/Gravieren', active: true, aliases: '', sort: 1 },
   ],
   machines: [
-    { id: 10, processId: 1, name: '3D Drucker Bambu Lab H2D', active: true, note: null, hourlyRateCents: 800, jobFlatCents: 0, sort: 0 },
-    { id: 11, processId: 1, name: '3D FDM Druck Prusa', active: true, note: null, hourlyRateCents: 500, jobFlatCents: 0, sort: 1 },
-    { id: 20, processId: 2, name: 'Muse Lasercutter', active: false, note: 'Wartung', hourlyRateCents: 1500, jobFlatCents: 0, sort: 0 },
+    { id: 10, processId: 1, name: '3D Drucker Bambu Lab H2D', active: true, note: null, hourlyRateCents: 800, jobFlatCents: 0, aliases: '', sort: 0 },
+    { id: 11, processId: 1, name: '3D FDM Druck Prusa', active: true, note: null, hourlyRateCents: 500, jobFlatCents: 0, aliases: '', sort: 1 },
+    { id: 20, processId: 2, name: 'Muse Lasercutter', active: false, note: 'Wartung', hourlyRateCents: 1500, jobFlatCents: 0, aliases: '', sort: 0 },
   ],
   materials: [
-    { id: 100, processId: 1, name: 'PLA', unit: 'g', priceMills: 3000, active: true, sort: 0 },
-    { id: 101, processId: 1, name: 'PETG', unit: 'g', priceMills: 4000, active: true, sort: 1 },
+    { id: 100, processId: 1, name: 'PLA', unit: 'g', priceMills: 3000, active: true, aliases: '', sort: 0 },
+    { id: 101, processId: 1, name: 'PETG', unit: 'g', priceMills: 4000, active: true, aliases: '', sort: 1 },
   ],
   discounts: [],
 };
@@ -90,7 +90,7 @@ describe('Validierung', () => {
     const res = validateRows(rows, ['name', 'quantity', 'process', 'machine'], md);
     expect(res[0]).toMatchObject({ unknownProcess: 'Wasserstrahl', unknownMachine: 'Jet 3000' });
     const u = collectUnknowns(res);
-    expect(u.processes).toEqual([{ key: 'wasserstrahl', name: 'Wasserstrahl', rows: [2] }]);
+    expect(u.processes).toEqual([{ key: 'wasserstrahl', name: 'Wasserstrahl', rows: [2], suggestion: null }]);
     expect(u.machines.map((m) => [m.name, m.rows])).toEqual([['Jet 3000', [2, 4]], ['Neuer Drucker', [3]]]);
   });
   it('erkennt Maschine im falschen Verfahren', () => {

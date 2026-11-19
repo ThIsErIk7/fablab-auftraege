@@ -4,6 +4,7 @@ import { addDaysIso, todayIso } from '@fablab/shared';
 import type { InvoiceSettings, MaterialUnit } from '@fablab/shared';
 import type { DB } from './connection.ts';
 import { tx } from './connection.ts';
+import { applyDefaultAliases } from './aliases.ts';
 import { createOrder, updatePart } from '../repos/orders.ts';
 import { DEFAULT_INVOICE_SETTINGS, saveInvoiceSettings } from '../repos/settings.ts';
 import { addItem, createDraftFromOrder, issueInvoice, updateDraft } from '../services/invoices.ts';
@@ -94,6 +95,7 @@ export function seedMasterData(db: DB) {
         db.prepare('INSERT INTO materials (process_id, name, unit, price_mills, sort) VALUES (?, ?, ?, ?, ?)')
           .run(pid, name, unit, mills(price), i));
     });
+    applyDefaultAliases(db);
     const disc = db.prepare('INSERT INTO customer_discounts (customer_type, percent_bp, label) VALUES (?, ?, ?)');
     disc.run('privat', 0, '');
     disc.run('firma', 0, '');

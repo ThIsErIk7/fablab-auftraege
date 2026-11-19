@@ -27,6 +27,7 @@ export function migrate(db: DB) {
     try {
       tx(db, () => {
         db.exec(m.sql);
+        m.run?.(db);
         if (m.foreignKeysOff) {
           const broken = db.prepare('PRAGMA foreign_key_check').all();
           if (broken.length) throw new Error(`Migration ${m.id}: Fremdschlüssel verletzt (${broken.length})`);

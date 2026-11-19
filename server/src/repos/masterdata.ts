@@ -23,12 +23,12 @@ function uniqueGuard(e: unknown, what: string): never {
 type ProcessIn = z.infer<typeof processInputSchema>;
 export function createProcess(db: DB, p: ProcessIn) {
   try {
-    const r = db.prepare('INSERT INTO processes (name, active, sort) VALUES (?, ?, ?)').run(p.name, p.active ? 1 : 0, p.sort);
+    const r = db.prepare('INSERT INTO processes (name, active, aliases, sort) VALUES (?, ?, ?, ?)').run(p.name, p.active ? 1 : 0, p.aliases, p.sort);
     return toProcess(db.prepare('SELECT * FROM processes WHERE id = ?').get(r.lastInsertRowid) as any);
   } catch (e) { uniqueGuard(e, 'Ein Verfahren'); }
 }
 export function updateProcess(db: DB, id: number, p: Partial<ProcessIn>) {
-  const { sql, values } = buildUpdate(p, { name: 'name', active: 'active', sort: 'sort' });
+  const { sql, values } = buildUpdate(p, { name: 'name', active: 'active', aliases: 'aliases', sort: 'sort' });
   try { if (sql) db.prepare(`UPDATE processes SET ${sql} WHERE id = ?`).run(...values, id); } catch (e) { uniqueGuard(e, 'Ein Verfahren'); }
   const row = db.prepare('SELECT * FROM processes WHERE id = ?').get(id);
   if (!row) throw notFound('Verfahren');
@@ -44,8 +44,8 @@ export function createMachine(db: DB, m: MachineIn) {
   assertProcess(db, m.processId);
   try {
     const r = db.prepare(
-      'INSERT INTO machines (process_id, name, active, note, hourly_rate_cents, job_flat_cents, sort) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run(m.processId, m.name, m.active ? 1 : 0, m.note, m.hourlyRateCents, m.jobFlatCents, m.sort);
+      'INSERT INTO machines (process_id, name, active, note, hourly_rate_cents, job_flat_cents, aliases, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(m.processId, m.name, m.active ? 1 : 0, m.note, m.hourlyRateCents, m.jobFlatCents, m.aliases, m.sort);
     return toMachine(db.prepare('SELECT * FROM machines WHERE id = ?').get(r.lastInsertRowid) as any);
   } catch (e) { uniqueGuard(e, 'Eine Maschine'); }
 }
@@ -57,7 +57,7 @@ export function updateMachine(db: DB, id: number, m: Partial<MachineIn>) {
   }
   const { sql, values } = buildUpdate(m, {
     processId: 'process_id', name: 'name', active: 'active', note: 'note',
-    hourlyRateCents: 'hourly_rate_cents', jobFlatCents: 'job_flat_cents', sort: 'sort',
+    hourlyRateCents: 'hourly_rate_cents', jobFlatCents: 'job_flat_cents', aliases: 'aliases', sort: 'sort',
   });
   try { if (sql) db.prepare(`UPDATE machines SET ${sql} WHERE id = ?`).run(...values, id); } catch (e) { uniqueGuard(e, 'Eine Maschine'); }
   const row = db.prepare('SELECT * FROM machines WHERE id = ?').get(id);
@@ -70,15 +70,15 @@ type MaterialIn = z.infer<typeof materialInputSchema>;
 export function createMaterial(db: DB, m: MaterialIn) {
   assertProcess(db, m.processId);
   try {
-    const r = db.prepare('INSERT INTO materials (process_id, name, unit, price_mills, active, sort) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(m.processId, m.name, m.unit, m.priceMills, m.active ? 1 : 0, m.sort);
+    const r = db.prepare('INSERT INTO materials (process_id, name, unit, price_mills, active, aliases, sort) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(m.processId, m.name, m.unit, m.priceMills, m.active ? 1 : 0, m.aliases, m.sort);
     return toMaterial(db.prepare('SELECT * FROM materials WHERE id = ?').get(r.lastInsertRowid) as any);
   } catch (e) { uniqueGuard(e, 'Ein Material (in diesem Verfahren)'); }
 }
 export function updateMaterial(db: DB, id: number, m: Partial<MaterialIn>) {
   if (m.processId !== undefined) assertProcess(db, m.processId);
   const { sql, values } = buildUpdate(m, {
-    processId: 'process_id', name: 'name', unit: 'unit', priceMills: 'price_mills', active: 'active', sort: 'sort',
+    processId: 'process_id', name: 'name', unit: 'unit', priceMills: 'price_mills', active: 'active', aliases: 'aliases', sort: 'sort',
   });
   try { if (sql) db.prepare(`UPDATE materials SET ${sql} WHERE id = ?`).run(...values, id); } catch (e) { uniqueGuard(e, 'Ein Material (in diesem Verfahren)'); }
   const row = db.prepare('SELECT * FROM materials WHERE id = ?').get(id);

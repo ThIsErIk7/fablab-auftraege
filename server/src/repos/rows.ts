@@ -4,13 +4,13 @@ import type { CustomerDiscount, Invoice, InvoiceItem, Machine, Material, Order, 
 type Row = Record<string, any>;
 const b = (v: unknown) => v === 1 || v === true;
 
-export const toProcess = (r: Row): Process => ({ id: r.id, name: r.name, active: b(r.active), sort: r.sort });
+export const toProcess = (r: Row): Process => ({ id: r.id, name: r.name, active: b(r.active), aliases: r.aliases ?? '', sort: r.sort });
 export const toMachine = (r: Row): Machine => ({
   id: r.id, processId: r.process_id, name: r.name, active: b(r.active), note: r.note,
-  hourlyRateCents: r.hourly_rate_cents, jobFlatCents: r.job_flat_cents, sort: r.sort,
+  hourlyRateCents: r.hourly_rate_cents, jobFlatCents: r.job_flat_cents, aliases: r.aliases ?? '', sort: r.sort,
 });
 export const toMaterial = (r: Row): Material => ({
-  id: r.id, processId: r.process_id, name: r.name, unit: r.unit, priceMills: r.price_mills, active: b(r.active), sort: r.sort,
+  id: r.id, processId: r.process_id, name: r.name, unit: r.unit, priceMills: r.price_mills, active: b(r.active), aliases: r.aliases ?? '', sort: r.sort,
 });
 export const toDiscount = (r: Row): CustomerDiscount => ({ customerType: r.customer_type, percentBp: r.percent_bp, label: r.label });
 export const toOrder = (r: Row): Order => ({

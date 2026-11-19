@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./import": "./src/import.ts"
+    "./import": "./src/import.ts",
+    "./matching": "./src/matching.ts"
   },
   "dependencies": {
     "papaparse": "^5.7.1",

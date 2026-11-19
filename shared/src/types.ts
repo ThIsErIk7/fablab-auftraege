@@ -67,6 +67,8 @@ export interface Process {
   id: number;
   name: string;
   active: boolean;
+  /** Alternative Bezeichnungen für den Import, kommagetrennt (z. B. „Bambu, X1C“). */
+  aliases: string;
   sort: number;
 }
 
@@ -79,6 +81,8 @@ export interface Machine {
   note: string | null;
   hourlyRateCents: number;
   jobFlatCents: number;
+  /** Alternative Bezeichnungen für den Import, kommagetrennt (z. B. „Bambu, X1C“). */
+  aliases: string;
   sort: number;
 }
 
@@ -90,6 +94,8 @@ export interface Material {
   /** Preis pro Einheit in Zehntelcent (1/1000 €), z. B. 0,035 €/g = 35. */
   priceMills: number;
   active: boolean;
+  /** Alternative Bezeichnungen für den Import, kommagetrennt (z. B. „Bambu, X1C“). */
+  aliases: string;
   sort: number;
 }
 

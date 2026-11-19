@@ -90,6 +90,14 @@ data/     SQLite-Datenbank (nicht im Git)
 - **Import:** `.xlsx`, `.xls`, `.csv` (Komma/Semikolon/Tab, UTF-8 mit/ohne BOM, Fallback Windows-1252),
   automatische Spaltenzuordnung, unbekannte Verfahren/Maschinen zuordnen, neu anlegen oder überspringen;
   Vorlage als CSV und XLSX
+- **Automatische Zuordnung beim Import (regelbasiert, ohne KI, offline):**
+  - exakte Namen **und gepflegte Alternativnamen** (Einstellungen → Maschine/Verfahren/Material, z. B. „Bambu, X1C“)
+  - unscharfer Vergleich für Tippfehler und Kürzel („Bamboo X1“, „Prusa MK4“)
+  - fehlt die Maschine: Verfahren aus **Dateiendung** (.svg/.dxf → Laser, .stl/.3mf → FDM, .form → SLA …) und **Material**
+    (Resin → SLA, PETG → FDM, Plexiglas → Laser); hat das Verfahren nur eine aktive Maschine, wird sie gesetzt
+  - Material über Alternativnamen („PET-G“, „Pappelsperrholz“), Farbe wird übernommen („PETG schwarz“)
+  - sichere Vorschläge werden vorausgefüllt, unsichere (z. B. „Lasercutter“ bei zwei Lasern) muss man bestätigen;
+    jede Zuordnung steht mit Begründung in der Vorschau. Code: `shared/src/matching.ts`
 - **Export:** Aufträge, Teile, Rechnungen (+ Positionen) als CSV (Semikolon, deutsches Zahlenformat) und XLSX
 - **Rechnungen:** Entwurf aus Auftrag, Positionen anpassen, freie Positionen (Betreuung, Design, Versand, Rabatt),
   optional Auto-Entwurf bei „Fertig“, PDF mit Pflichtangaben nach § 14 UStG, bezahlt markieren, Storno

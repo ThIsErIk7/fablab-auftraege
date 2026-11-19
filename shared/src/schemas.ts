@@ -69,6 +69,7 @@ export const partPatchSchema = patchOf(partInputSchema);
 export const processInputSchema = z.object({
   name: z.string().trim().min(1, 'Name fehlt'),
   active: z.boolean().default(true),
+  aliases: z.string().trim().max(1000).default(''),
   sort: z.number().int().default(0),
 });
 export const processPatchSchema = patchOf(processInputSchema);
@@ -80,6 +81,7 @@ export const machineInputSchema = z.object({
   note: optText,
   hourlyRateCents: cents.min(0).default(0),
   jobFlatCents: cents.min(0).default(0),
+  aliases: z.string().trim().max(1000).default(''),
   sort: z.number().int().default(0),
 });
 export const machinePatchSchema = patchOf(machineInputSchema);
@@ -90,6 +92,7 @@ export const materialInputSchema = z.object({
   unit: z.enum(MATERIAL_UNITS),
   priceMills: cents.min(0).default(0),
   active: z.boolean().default(true),
+  aliases: z.string().trim().max(1000).default(''),
   sort: z.number().int().default(0),
 });
 export const materialPatchSchema = patchOf(materialInputSchema);

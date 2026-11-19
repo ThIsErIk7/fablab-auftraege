@@ -2,7 +2,10 @@
 // Neue Änderungen immer als neuen Eintrag anhängen, bestehende nie verändern.
 // Geldbeträge: INTEGER in Cent. Prozentsätze: INTEGER in Basispunkten (1900 = 19 %).
 
-export const MIGRATIONS: { id: number; name: string; sql: string; foreignKeysOff?: boolean }[] = [
+import type { DB } from './connection.ts';
+import { applyDefaultAliases } from './aliases.ts';
+
+export const MIGRATIONS: { id: number; name: string; sql: string; foreignKeysOff?: boolean; run?: (db: DB) => void }[] = [
   {
     id: 1,
     name: 'grundschema',
@@ -249,5 +252,16 @@ CREATE TRIGGER items_no_delete_issued BEFORE DELETE ON invoice_items
 WHEN (SELECT status FROM invoices WHERE id = OLD.invoice_id) <> 'entwurf'
 BEGIN SELECT RAISE(ABORT, 'Positionen gestellter Rechnungen sind gesperrt.'); END;
 `,
+  },
+  {
+    id: 3,
+    name: 'alternativnamen_fuer_import',
+    // Alternative Bezeichnungen (kommagetrennt) für die automatische Zuordnung beim Import.
+    sql: /* sql */ `
+ALTER TABLE processes ADD COLUMN aliases TEXT NOT NULL DEFAULT '';
+ALTER TABLE machines  ADD COLUMN aliases TEXT NOT NULL DEFAULT '';
+ALTER TABLE materials ADD COLUMN aliases TEXT NOT NULL DEFAULT '';
+`,
+    run: applyDefaultAliases,
   },
 ];

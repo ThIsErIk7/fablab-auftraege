@@ -1,4 +1,4 @@
-import { IconCheck, IconFile, IconX } from '../components/icons.tsx';
+import { IconAuto, IconCheck, IconFile, IconX } from '../components/icons.tsx';
 import type { OrderListItem } from '@fablab/shared';
 import { formatNumber, PART_STATUS_LABELS } from '@fablab/shared';
 import {
@@ -6,11 +6,12 @@ import {
   type ColumnMapping, type ImportFieldKey, type ParsedTable, type Resolution, type Resolutions,
 } from '@fablab/shared/import';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Confidence, Match } from '@fablab/shared/matching';
 import { emptyOrder, OrderForm, validateOrder, type OrderDraft } from '../components/OrderForm.tsx';
 import { useToast } from '../components/Toast.tsx';
-import { Button, Card, ErrorBox, Loading, Notice, PageHeader, Segmented, Select } from '../components/ui.tsx';
+import { Button, Card, ErrorBox, linkCls, Loading, Notice, PageHeader, Segmented, Select } from '../components/ui.tsx';
 import { api, download, errorMessage } from '../lib/api.ts';
 import { useMasterData } from '../lib/hooks.ts';
 
@@ -59,10 +60,26 @@ export default function ImportPage() {
     setMapping(autoMapColumns(t.headers));
     setSkip(new Set());
     setRes({ processes: {}, machines: {} });
+    setAutoKeys(new Set());
   };
 
   const results = useMemo(() => (table && md ? validateRows(table.rows, mapping, md) : []), [table, mapping, md]);
-  const unknowns = useMemo(() => collectUnknowns(results), [results]);
+  const unknowns = useMemo(() => (md ? collectUnknowns(results, md) : { processes: [], machines: [] }), [results, md]);
+  // Sichere Vorschläge der Regel-Erkennung vorausfüllen (nur wo noch nichts gewählt ist) – änderbar
+  const [autoKeys, setAutoKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const add: { kind: 'processes' | 'machines'; key: string; id: number }[] = [];
+    for (const u of unknowns.processes) if (u.suggestion && u.suggestion.confidence !== 'niedrig' && !res.processes[u.key]) add.push({ kind: 'processes', key: u.key, id: u.suggestion.id });
+    for (const u of unknowns.machines) if (u.suggestion && u.suggestion.confidence !== 'niedrig' && !res.machines[u.key]) add.push({ kind: 'machines', key: u.key, id: u.suggestion.id });
+    if (!add.length) return;
+    setRes((r) => {
+      const n = { processes: { ...r.processes }, machines: { ...r.machines } };
+      for (const a of add) n[a.kind][a.key] = { action: 'map', id: a.id };
+      return n;
+    });
+    setAutoKeys((s) => new Set([...s, ...add.map((a) => `${a.kind}:${a.key}`)]));
+  }, [unknowns]); // eslint-disable-line react-hooks/exhaustive-deps
+  const autoRows = results.filter((r) => r.notes.length > 0).length;
   const mappedRequired = mapping.includes('name') && mapping.includes('quantity');
 
   // Zeilen, die durch "überspringen" bei unbekannten Namen wegfallen
@@ -97,8 +114,12 @@ export default function ImportPage() {
   };
 
   if (isLoading) return <Loading />;
-  const setRes1 = (kind: 'processes' | 'machines', key: string, v: Resolution | null) =>
+  const setRes1 = (kind: 'processes' | 'machines', key: string, v: Resolution | null) => {
     setRes((r) => { const n = { ...r[kind] }; if (v) n[key] = v; else delete n[key]; return { ...r, [kind]: n }; });
+    // Manuelle Entscheidung ist kein Vorschlag mehr
+    setAutoKeys((s) => { const n = new Set(s); n.delete(`${kind}:${key}`); return n; });
+  };
+  const nameOf = (kind: 'processes' | 'machines', id: number) => (kind === 'processes' ? md!.processes : md!.machines).find((x) => x.id === id)?.name ?? '';
 
   return (
     <>
@@ -178,17 +199,23 @@ export default function ImportPage() {
             </div>
           </Card>
 
-          {/* 4. Unbekannte Namen */}
+          {/* 4. Zuordnung unbekannter Namen – mit Vorschlägen der Regel-Erkennung */}
           {mappedRequired && (unknowns.processes.length > 0 || unknowns.machines.length > 0) && (
-            <Card title="4 · Unbekannte Verfahren / Maschinen" className="mb-4">
+            <Card title="4 · Maschinen & Verfahren zuordnen" className="mb-4">
+              <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+                Diese Bezeichnungen aus der Datei kennt die App nicht exakt. Sichere Vorschläge sind schon eingetragen – bitte kurz prüfen.
+                Damit es beim nächsten Mal automatisch klappt: Bezeichnung als Alternativname unter <a className={linkCls} href="/admin" target="_blank" rel="noreferrer">Einstellungen</a> hinterlegen.
+              </p>
               <div className="space-y-3">
                 {unknowns.processes.map((u) => (
                   <ResolveRow key={`p-${u.key}`} label={<>Verfahren <b>„{u.name}“</b></>} rows={u.rows} value={res.processes[u.key]}
+                    suggestion={u.suggestion} suggestionName={u.suggestion ? nameOf('processes', u.suggestion.id) : ''} auto={autoKeys.has(`processes:${u.key}`)}
                     options={md!.processes.map((p) => ({ id: p.id, name: p.name }))} onChange={(v) => setRes1('processes', u.key, v)} />
                 ))}
                 {unknowns.machines.map((u) => (
                   <ResolveRow key={`m-${u.key}`} label={<>Maschine <b>„{u.name}“</b>{u.processName && <span className="text-zinc-500"> (Verfahren: {u.processName})</span>}</>} rows={u.rows}
                     value={res.machines[u.key]} options={md!.machines.map((m) => ({ id: m.id, name: m.name }))}
+                    suggestion={u.suggestion} suggestionName={u.suggestion ? nameOf('machines', u.suggestion.id) : ''} auto={autoKeys.has(`machines:${u.key}`)}
                     processes={md!.processes} defaultProcessId={u.processId}
                     onChange={(v) => setRes1('machines', u.key, v)} />
                 ))}
@@ -203,6 +230,7 @@ export default function ImportPage() {
                 <span className="inline-flex items-center gap-1 font-semibold"><IconCheck className="text-ok" />{included.length - withErrors.length} bereit</span>
                 {withErrors.length > 0 && <span className="inline-flex items-center gap-1 font-semibold text-bad"><IconX />{withErrors.length} mit Fehlern</span>}
                 <span className="text-zinc-500">{results.length - included.length} übersprungen</span>
+                {autoRows > 0 && <span className="inline-flex items-center gap-1 text-brand-700 dark:text-brand-500"><IconAuto />{autoRows} automatisch zugeordnet</span>}
                 {withErrors.length > 0 && <Button size="sm" onClick={() => setSkip(new Set([...skip, ...withErrors.map((r) => r.index)]))}>Fehlerhafte Zeilen überspringen</Button>}
               </div>
               <div className="-mx-4 max-h-[28rem] overflow-auto">
@@ -214,8 +242,12 @@ export default function ImportPage() {
                     {results.map((r) => {
                       const resolvedSkip = skippedByResolution(r);
                       const on = !skip.has(r.index) && !resolvedSkip;
-                      const machineLabel = md!.machines.find((m) => m.id === r.part.machineId)?.name ?? r.unknownMachine ?? '';
-                      const procLabel = md!.processes.find((p) => p.id === r.part.processId)?.name ?? r.unknownProcess ?? '';
+                      const mRes = r.unknownMachine ? res.machines[nameKey(r.unknownMachine)] : undefined;
+                      const pRes = r.unknownProcess ? res.processes[nameKey(r.unknownProcess)] : undefined;
+                      const machineLabel = md!.machines.find((m) => m.id === r.part.machineId)?.name
+                        ?? (mRes?.action === 'map' ? `${r.unknownMachine} → ${md!.machines.find((m) => m.id === mRes.id)?.name}` : mRes?.action === 'create' ? `${r.unknownMachine} (neu)` : r.unknownMachine) ?? '';
+                      const procLabel = md!.processes.find((p) => p.id === r.part.processId)?.name
+                        ?? (pRes?.action === 'map' ? md!.processes.find((p) => p.id === pRes.id)?.name : r.unknownProcess) ?? '';
                       return (
                         <tr key={r.index} className={!on ? 'opacity-40' : r.errors.length ? 'bg-bad/10' : r.warnings.length ? 'bg-warn/10' : ''}>
                           <td className="px-3 py-1.5">
@@ -231,6 +263,7 @@ export default function ImportPage() {
                           <td className="px-2 text-xs">
                             {r.errors.map((e) => <div key={e} className="font-semibold text-bad">{e}</div>)}
                             {r.warnings.map((w) => <div key={w} className="text-zinc-600 dark:text-zinc-400">Hinweis: {w}</div>)}
+                            {r.notes.map((n) => <div key={n} className={/prüfen|unklar/.test(n) ? 'font-semibold text-zinc-900 dark:text-white' : 'text-brand-700 dark:text-brand-500'}>{/prüfen|unklar/.test(n) ? '? ' : '→ '}{n}</div>)}
                             {r.unknownProcess && !res.processes[nameKey(r.unknownProcess)] && <div className="text-zinc-900 dark:text-white">? Verfahren unbekannt</div>}
                             {r.unknownMachine && !res.machines[nameKey(r.unknownMachine)] && <div className="text-zinc-900 dark:text-white">? Maschine unbekannt</div>}
                           </td>
@@ -256,14 +289,30 @@ export default function ImportPage() {
   );
 }
 
-function ResolveRow({ label, rows, value, options, onChange, processes, defaultProcessId }: {
+const CONF_LABEL: Record<Confidence, string> = { hoch: 'sicher', mittel: 'wahrscheinlich', niedrig: 'unsicher' };
+
+function ResolveRow({ label, rows, value, options, onChange, processes, defaultProcessId, suggestion, suggestionName, auto }: {
   label: React.ReactNode; rows: number[]; value: Resolution | undefined; options: { id: number; name: string }[];
   onChange: (v: Resolution | null) => void; processes?: { id: number; name: string }[]; defaultProcessId?: number | null;
+  suggestion?: Match | null; suggestionName?: string; auto?: boolean;
 }) {
   const action = value?.action ?? '';
+  const usingSuggestion = suggestion && value?.action === 'map' && value.id === suggestion.id;
   return (
-    <div className={`flex flex-wrap items-center gap-3 rounded-md border p-3 ${value ? 'border-ok' : 'border-warn'}`}>
-      <div className="min-w-56 flex-1">{label}<div className="text-xs text-zinc-500">Zeile {rows.slice(0, 10).join(', ')}{rows.length > 10 ? ' …' : ''}</div></div>
+    <div className={`flex flex-wrap items-center gap-3 border-l-4 bg-zinc-50 p-3 dark:bg-zinc-950/40 ${value ? (auto ? 'border-brand-500' : 'border-ok') : 'border-warn'}`}>
+      <div className="min-w-56 flex-1">
+        {label}
+        <div className="text-xs text-zinc-500">Zeile {rows.slice(0, 10).join(', ')}{rows.length > 10 ? ' …' : ''}</div>
+        {suggestion && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            <span className={`text-[0.65rem] font-bold uppercase tracking-[0.1em] ${suggestion.confidence === 'niedrig' ? 'text-zinc-500' : 'text-brand-700 dark:text-brand-500'}`}>
+              Vorschlag · {CONF_LABEL[suggestion.confidence]}
+            </span>
+            <span><b>{suggestionName}</b> <span className="text-zinc-500">({suggestion.reason})</span></span>
+            {!usingSuggestion && <Button size="sm" variant="ghost" onClick={() => onChange({ action: 'map', id: suggestion.id })}>Übernehmen</Button>}
+          </div>
+        )}
+      </div>
       <Select aria-label="Aktion" className="w-52" value={action} onChange={(e) => {
         const a = e.target.value;
         if (a === 'map') onChange({ action: 'map', id: options[0]?.id });
