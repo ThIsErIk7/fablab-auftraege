@@ -17,6 +17,9 @@ import { useMasterData } from '../lib/hooks.ts';
 
 interface PartChange { part: Part; orderStatus: OrderStatus; suggestFinish: boolean; allDone: boolean }
 
+/** Spalten der Teileliste: # · Haken · Teil · Maschine/Material · Maße · Zeit · Verbrauch · Status · Aktionen */
+const PART_GRID = 'grid grid-cols-[1.75rem_1fr_auto] gap-x-4 lg:gap-x-3 lg:grid-cols-[1.5rem_1.75rem_minmax(10rem,1fr)_minmax(8rem,12rem)_8rem_5rem_5.5rem_8rem_7.5rem]';
+
 function Meta({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -204,7 +207,7 @@ export default function OrderDetailPage() {
         </Notice>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid gap-6 xl:grid-cols-2">
         {/* Teile */}
         <Card className="xl:col-span-2" flush title={<>Teile <span className="tabular ml-1 text-zinc-500">{doneCount}/{o.parts.length}</span></>} actions={<>
           <Button size="sm" variant="ghost" onClick={() => download(`/export/teile.xlsx?orderId=${o.id}`)}><IconDownload />Export</Button>
@@ -214,52 +217,64 @@ export default function OrderDetailPage() {
           {o.parts.length === 0 ? (
             <div className="p-5"><EmptyState>Noch keine Teile. <button className={linkCls} onClick={() => setPartModal({ part: emptyPart(), id: null })}>Erstes Teil anlegen</button> oder <Link className={linkCls} to={`/import?auftrag=${o.id}`}>aus Datei importieren</Link>.</EmptyState></div>
           ) : (
-            <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {o.parts.map((p) => {
-                const mat = mdq.material(p.materialId);
-                return (
-                  <li key={p.id} className={`flex gap-4 px-5 py-4 transition-colors ${p.done ? 'bg-zinc-50 dark:bg-zinc-950/50' : ''}`}>
-                    <BigCheckbox checked={p.done} label={`„${p.name}“ erledigt`} onChange={(v) => patchPart.mutate({ partId: p.id, patch: { done: v } })} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-lg font-semibold ${p.done ? 'text-zinc-400 line-through' : ''}`}>{p.name}</span>
-                        <span className="tabular bg-zinc-900 px-1.5 text-sm font-bold text-white dark:bg-white dark:text-zinc-900">{p.quantity}×</span>
-                        <PartStatusBadge status={p.status} />
-                        {exceedsBuildVolume(p) && <span className="inline-flex items-center gap-1 text-[0.7rem] font-bold uppercase tracking-[0.1em] text-bad" title="Größer als der größte Bauraum"><IconAlert />Bauraum</span>}
+            <>
+              <div className={`${PART_GRID} hidden border-b border-zinc-200 px-5 py-3 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-zinc-500 lg:grid dark:border-zinc-800`}>
+                <span>#</span><span aria-label="Erledigt"><IconCheck /></span><span>Teil</span><span>Maschine · Material</span><span>Maße (mm)</span><span className="text-right">Zeit</span><span className="text-right">Verbrauch</span><span>Status</span><span />
+              </div>
+              <ol className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                {o.parts.map((p, idx) => {
+                  const mat = mdq.material(p.materialId);
+                  const unit = mat ? MATERIAL_UNIT_LABELS[mat.unit] : '';
+                  const fine = !mat || mat.unit === 'g' || mat.unit === 'ml';
+                  const dims = p.dimW || p.dimD || p.dimH ? `${formatNumber(p.dimW)} × ${formatNumber(p.dimD)} × ${formatNumber(p.dimH)}` : '–';
+                  return (
+                    <li key={p.id} className={`${PART_GRID} grid items-center gap-y-1 px-5 py-2.5 transition-colors ${p.done ? 'bg-zinc-50 dark:bg-zinc-950/50' : 'hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30'}`}>
+                      <span className="tabular hidden text-sm font-semibold text-zinc-400 lg:block">{String(idx + 1).padStart(2, '0')}</span>
+                      <BigCheckbox checked={p.done} label={`„${p.name}“ ${p.done ? 'wieder öffnen' : 'erledigt'}`} onChange={(v) => patchPart.mutate({ partId: p.id, patch: { done: v } })} />
+                      {/* Teil */}
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className={`font-semibold ${p.done ? 'text-zinc-400 line-through' : ''}`}>{p.name}</span>
+                          <span className="tabular bg-zinc-900 px-1.5 text-xs font-bold text-white dark:bg-white dark:text-zinc-900">{p.quantity}×</span>
+                          {exceedsBuildVolume(p) && <span className="inline-flex items-center gap-1 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-bad" title="Größer als der größte Bauraum"><IconAlert />Bauraum</span>}
+                        </div>
+                        {(p.fileRef || p.notes) && (
+                          <div className="truncate text-xs text-zinc-500" title={[p.fileRef, p.notes].filter(Boolean).join(' · ')}>
+                            {p.fileRef}{p.fileRef && p.notes && ' · '}{p.notes && <i>{p.notes}</i>}
+                          </div>
+                        )}
+                        {/* Kompakte Zusatzzeile auf schmalen Bildschirmen */}
+                        <div className="text-xs text-zinc-500 lg:hidden">
+                          {[mdq.machineName(p.machineId) || mdq.processName(p.processId), mat?.name ?? p.materialText, p.estMinutes != null && `${p.actualMinutes ?? p.estMinutes} min`].filter(Boolean).join(' · ')}
+                        </div>
                       </div>
-                      <div className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-                        {[mdq.machineName(p.machineId) || mdq.processName(p.processId) || 'Maschine offen',
-                          mat?.name ?? p.materialText, p.color,
-                          p.dimW || p.dimD || p.dimH ? `${formatNumber(p.dimW)}×${formatNumber(p.dimD)}×${formatNumber(p.dimH)} mm` : null,
-                        ].filter(Boolean).join(' · ')}
+                      {/* Maschine · Material */}
+                      <div className="hidden min-w-0 text-sm lg:block">
+                        <div className="truncate">{mdq.machineName(p.machineId) || <span className="text-zinc-400">{mdq.processName(p.processId) || 'offen'}</span>}</div>
+                        <div className="truncate text-xs text-zinc-500">{[mat?.name ?? p.materialText, p.color].filter(Boolean).join(' · ') || '–'}</div>
                       </div>
-                      <div className="text-sm text-zinc-500">
-                        {[p.fileRef && `Datei: ${p.fileRef}`,
-                          p.estMinutes != null && `geschätzt ${p.estMinutes} min`,
-                          p.actualMinutes != null && `Maschinenzeit ${p.actualMinutes} min`,
-                          p.materialAmount != null && `Verbrauch ${formatNumber(p.materialAmount, 3)} ${mat ? MATERIAL_UNIT_LABELS[mat.unit] : ''}`,
-                        ].filter(Boolean).join(' · ')}
+                      <span className="tabular hidden text-sm text-zinc-600 lg:block dark:text-zinc-400">{dims}</span>
+                      <div className="tabular hidden text-right text-sm lg:block">
+                        {p.actualMinutes != null ? <span title="Tatsächliche Maschinenzeit">{p.actualMinutes} min</span> : <span className="text-zinc-400" title="Geschätzt">{p.estMinutes != null ? `~${p.estMinutes} min` : '–'}</span>}
                       </div>
-                      {p.notes && <div className="text-sm italic text-zinc-500">{p.notes}</div>}
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                      <Select aria-label="Status" className="!min-h-10 w-40 text-sm" value={p.status} onChange={(e) => patchPart.mutate({ partId: p.id, patch: { status: e.target.value as PartStatus } })}>
+                      <span className="tabular hidden text-right text-sm lg:block">{p.materialAmount != null ? `${formatNumber(p.materialAmount, fine ? 1 : 3)} ${unit}` : <span className="text-zinc-400">–</span>}</span>
+                      <Select aria-label={`Status von ${p.name}`} className="col-start-2 col-end-3 !min-h-9 max-w-48 !py-1 text-sm lg:col-auto lg:max-w-none" value={p.status} onChange={(e) => patchPart.mutate({ partId: p.id, patch: { status: e.target.value as PartStatus } })}>
                         {PART_STATUSES.map((s) => <option key={s} value={s}>{PART_STATUS_LABELS[s]}</option>)}
                       </Select>
-                      <div className="flex">
-                        <Button icon variant="ghost" onClick={() => { setPartModal({ part: partToDraft(p), id: p.id }); setPartErrors({}); }} aria-label="Bearbeiten" title="Bearbeiten"><IconEdit /></Button>
-                        <Button icon variant="ghost" onClick={() => duplicate.mutate(p.id)} aria-label="Duplizieren" title="Duplizieren"><IconCopy /></Button>
-                        <Button icon variant="ghost" onClick={() => setConfirm({ kind: 'deletePart', part: p })} aria-label="Löschen" title="Löschen"><IconTrash /></Button>
+                      <div className="col-start-3 row-start-1 flex justify-end lg:col-auto lg:row-auto">
+                        <Button icon size="sm" variant="ghost" onClick={() => { setPartModal({ part: partToDraft(p), id: p.id }); setPartErrors({}); }} aria-label={`${p.name} bearbeiten`} title="Bearbeiten"><IconEdit /></Button>
+                        <Button icon size="sm" variant="ghost" onClick={() => duplicate.mutate(p.id)} aria-label={`${p.name} duplizieren`} title="Duplizieren"><IconCopy /></Button>
+                        <Button icon size="sm" variant="ghost" onClick={() => setConfirm({ kind: 'deletePart', part: p })} aria-label={`${p.name} löschen`} title="Löschen"><IconTrash /></Button>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                    </li>
+                  );
+                })}
+              </ol>
+            </>
           )}
         </Card>
 
-        <div className="flex flex-col gap-4">
+        <div className="contents">
           {/* Rechnungen */}
           <Card title="Rechnungen">
             {!o.noBilling && <Button className="mb-4 w-full" variant={activeInvoices.length ? 'secondary' : 'primary'} onClick={() => createInvoice.mutate()} loading={createInvoice.isPending}>Rechnungsentwurf erstellen</Button>}
